@@ -4,9 +4,20 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+const http = require('http');
+const { Server } = require('socket.io');
+const webpush = require('web-push');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 const SECRET = 'snapvibe_secret_key';
+
+webpush.setVapidDetails(
+  'mailto:snapvibe@example.com',
+  'BO5ridjbmID1Wroza2yYOOV4OmMsyuWh5jrR8g4heh0ZmkKWPWBxeA-aQfvAQBERt8seBEBqJfjZ7NCnZ432Ayk',
+  'eZIJwGI4-7T-bV2jlcsJvJgLrItmF-tJTEJeJKKNP-8'
+);
 
 mongoose.connect('mongodb+srv://manaskumarndi0_db_user:SnapVibe123@cluster0.wd1iehn.mongodb.net/snapvibe?appName=Cluster0')
   .then(() => console.log('MongoDB connected!'))
@@ -14,27 +25,36 @@ mongoose.connect('mongodb+srv://manaskumarndi0_db_user:SnapVibe123@cluster0.wd1i
 
 // Models
 const User = mongoose.model('User', new mongoose.Schema({
-  name: String,
-  username: String,
-  email: String,
-  password: String,
+  name: String, username: String, email: String, password: String,
   bio: { type: String, default: '' },
-  profilePic: { type: String, default: '/uploads/default.png' },
-  followers: [String],
-  following: [String]
+  profilePic: { type: String, default: '' },
+  followers: [String], following: [String]
 }));
 
 const Post = mongoose.model('Post', new mongoose.Schema({
-  username: String, name: String, caption: String,
-  image: String, likes: [String],
-  comments: [{ username: String, comment: String }],
+  username: String, name: String, caption: String, image: String,
+  likes: [String], comments: [{ username: String, comment: String }],
   createdAt: { type: Date, default: Date.now }
 }));
 
 const Story = mongoose.model('Story', new mongoose.Schema({
-  username: String, name: String,
-  media: String, caption: String,
+  username: String, name: String, media: String, caption: String,
   createdAt: { type: Date, default: Date.now, expires: 86400 }
+}));
+
+const Message = mongoose.model('Message', new mongoose.Schema({
+  from: String, to: String, message: String,
+  createdAt: { type: Date, default: Date.now }
+}));
+
+const Notification = mongoose.model('Notification', new mongoose.Schema({
+  toUser: String, fromUser: String, type: String, message: String,
+  read: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+}));
+
+const PushSub = mongoose.model('PushSub', new mongoose.Schema({
+  username: String, subscription: Object
 }));
 
 app.use(express.json());
@@ -47,15 +67,21 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Auth middleware
 function auth(req, res, next) {
   const token = req.headers['authorization'];
   if (!token) return res.json({ success: false, message: 'Login karo pehle!' });
-  try {
-    req.user = jwt.verify(token, SECRET);
-    next();
-  } catch {
-    res.json({ success: false, message: 'Invalid token!' });
+  try { req.user = jwt.verify(token, SECRET); next(); }
+  catch { res.json({ success: false, message: 'Invalid token!' }); }
+}
+
+async function sendNotif(toUser, fromUser, type, message) {
+  if (toUser === fromUser) return;
+  await Notification.create({ toUser, fromUser, type, message });
+  const sub = await PushSub.findOne({ username: toUser });
+  if (sub) {
+    try {
+      await webpush.sendNotification(sub.subscription, JSON.stringify({ title: 'SnapVibe', body: message }));
+    } catch(e) {}
   }
 }
 
@@ -66,6 +92,9 @@ app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'views', 'r
 app.get('/feed', (req, res) => res.sendFile(path.join(__dirname, 'views', 'feed.html')));
 app.get('/story', (req, res) => res.sendFile(path.join(__dirname, 'views', 'story.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'views', 'profile.html')));
+app.get('/explore', (req, res) => res.sendFile(path.join(__dirname, 'views', 'explore.html')));
+app.get('/notifications', (req, res) => res.sendFile(path.join(__dirname, 'views', 'notifications.html')));
+app.get('/dm', (req, res) => res.sendFile(path.join(__dirname, 'views', 'dm.html')));
 
 // Register
 app.post('/api/register', async (req, res) => {
@@ -88,87 +117,6 @@ app.post('/api/login', async (req, res) => {
   res.json({ success: true, token, name: user.name, username: user.username });
 });
 
-// Upload post
-app.post('/api/post', upload.single('image'), async (req, res) => {
-  const { caption, username, name } = req.body;
-  const post = await Post.create({ username, name, caption, image: '/uploads/' + req.file.filename });
-  res.json({ success: true, post });
-});
-
-// Get posts
-app.get('/api/posts', async (req, res) => {
-  const posts = await Post.find().sort({ createdAt: -1 });
-  res.json(posts);
-});
-
-// Like
-app.post('/api/like/:id', async (req, res) => {
-  const post = await Post.findById(req.params.id);
-  const { username } = req.body;
-  if (!post) return res.json({ success: false });
-  const idx = post.likes.indexOf(username);
-  if (idx === -1) post.likes.push(username);
-  else post.likes.splice(idx, 1);
-  await post.save();
-  res.json({ success: true, likes: post.likes.length });
-});
-
-// Comment
-app.post('/api/comment/:id', async (req, res) => {
-  const post = await Post.findById(req.params.id);
-  const { username, comment } = req.body;
-  if (!post) return res.json({ success: false });
-  post.comments.push({ username, comment });
-  await post.save();
-  res.json({ success: true, comments: post.comments });
-});
-
-// Follow / Unfollow
-app.post('/api/follow/:targetUsername', auth, async (req, res) => {
-  const me = req.user.username;
-  const target = req.params.targetUsername;
-  if (me === target) return res.json({ success: false, message: 'Khud ko follow nahi kar sakte!' });
-  const myUser = await User.findOne({ username: me });
-  const targetUser = await User.findOne({ username: target });
-  if (!targetUser) return res.json({ success: false, message: 'User nahi mila!' });
-  const idx = myUser.following.indexOf(target);
-  if (idx === -1) {
-    myUser.following.push(target);
-    targetUser.followers.push(me);
-    await myUser.save();
-    await targetUser.save();
-    res.json({ success: true, action: 'followed', followers: targetUser.followers.length });
-  } else {
-    myUser.following.splice(idx, 1);
-    targetUser.followers.splice(targetUser.followers.indexOf(me), 1);
-    await myUser.save();
-    await targetUser.save();
-    res.json({ success: true, action: 'unfollowed', followers: targetUser.followers.length });
-  }
-});
-
-// Get profile
-app.get('/api/profile/:username', async (req, res) => {
-  const user = await User.findOne({ username: req.params.username }).select('-password');
-  if (!user) return res.json({ success: false, message: 'User nahi mila!' });
-  const posts = await Post.find({ username: req.params.username }).sort({ createdAt: -1 });
-  res.json({ success: true, user, posts });
-});
-
-// Upload story
-app.post('/api/story', upload.single('media'), async (req, res) => {
-  const { caption, username, name } = req.body;
-  const story = await Story.create({ username, name, caption, media: '/uploads/' + req.file.filename });
-  res.json({ success: true, story });
-});
-
-// Get stories
-app.get('/api/stories', async (req, res) => {
-  const stories = await Story.find().sort({ createdAt: -1 });
-  res.json(stories);
-});
-
-
 // Search users
 app.get('/api/search', async (req, res) => {
   const q = req.query.q;
@@ -182,36 +130,106 @@ app.get('/api/search', async (req, res) => {
   res.json(users);
 });
 
-// Explore page
-app.get('/explore', (req, res) => res.sendFile(path.join(__dirname, 'views', 'explore.html')));
+// Get profile
+app.get('/api/profile/:username', async (req, res) => {
+  const user = await User.findOne({ username: req.params.username }).select('-password');
+  if (!user) return res.json({ success: false, message: 'User nahi mila!' });
+  const posts = await Post.find({ username: req.params.username }).sort({ createdAt: -1 });
+  res.json({ success: true, user, posts });
+});
 
-// ===== PUSH NOTIFICATIONS + NOTIFICATIONS SYSTEM =====
-const webpush = require('web-push');
+// Follow/Unfollow
+app.post('/api/follow/:targetUsername', auth, async (req, res) => {
+  const me = req.user.username;
+  const target = req.params.targetUsername;
+  if (me === target) return res.json({ success: false, message: 'Khud ko follow nahi kar sakte!' });
+  const myUser = await User.findOne({ username: me });
+  const targetUser = await User.findOne({ username: target });
+  if (!targetUser) return res.json({ success: false, message: 'User nahi mila!' });
+  const idx = myUser.following.indexOf(target);
+  if (idx === -1) {
+    myUser.following.push(target);
+    targetUser.followers.push(me);
+    await myUser.save(); await targetUser.save();
+    await sendNotif(target, me, 'follow', `@${me} ne tumhe follow kiya!`);
+    res.json({ success: true, action: 'followed', followers: targetUser.followers.length });
+  } else {
+    myUser.following.splice(idx, 1);
+    targetUser.followers.splice(targetUser.followers.indexOf(me), 1);
+    await myUser.save(); await targetUser.save();
+    res.json({ success: true, action: 'unfollowed', followers: targetUser.followers.length });
+  }
+});
 
-webpush.setVapidDetails(
-  'mailto:snapvibe@example.com',
-  'BO5ridjbmID1Wroza2yYOOV4OmMsyuWh5jrR8g4heh0ZmkKWPWBxeA-aQfvAQBERt8seBEBqJfjZ7NCnZ432Ayk',
-  'eZIJwGI4-7T-bV2jlcsJvJgLrItmF-tJTEJeJKKNP-8'
-);
+// Posts
+app.post('/api/post', upload.single('image'), async (req, res) => {
+  const { caption, username, name } = req.body;
+  const post = await Post.create({ username, name, caption, image: '/uploads/' + req.file.filename });
+  res.json({ success: true, post });
+});
 
-const PushSubscription = mongoose.model('PushSubscription', new mongoose.Schema({
-  username: String,
-  subscription: Object
-}));
+app.get('/api/posts', async (req, res) => {
+  const posts = await Post.find().sort({ createdAt: -1 });
+  res.json(posts);
+});
 
-const Notification = mongoose.model('Notification', new mongoose.Schema({
-  toUser: String,
-  fromUser: String,
-  type: String,
-  message: String,
-  read: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
-}));
+// Like
+app.post('/api/like/:id', async (req, res) => {
+  const post = await Post.findById(req.params.id);
+  const { username } = req.body;
+  if (!post) return res.json({ success: false });
+  const idx = post.likes.indexOf(username);
+  if (idx === -1) {
+    post.likes.push(username);
+    await sendNotif(post.username, username, 'like', `@${username} ne tumhara post like kiya!`);
+  } else post.likes.splice(idx, 1);
+  await post.save();
+  res.json({ success: true, likes: post.likes.length });
+});
 
-// Save push subscription
+// Comment
+app.post('/api/comment/:id', async (req, res) => {
+  const post = await Post.findById(req.params.id);
+  const { username, comment } = req.body;
+  if (!post) return res.json({ success: false });
+  post.comments.push({ username, comment });
+  await post.save();
+  await sendNotif(post.username, username, 'comment', `@${username} ne comment kiya: ${comment}`);
+  res.json({ success: true, comments: post.comments });
+});
+
+// Stories
+app.post('/api/story', upload.single('media'), async (req, res) => {
+  const { caption, username, name } = req.body;
+  const story = await Story.create({ username, name, caption, media: '/uploads/' + req.file.filename });
+  res.json({ success: true, story });
+});
+
+app.get('/api/stories', async (req, res) => {
+  const stories = await Story.find().sort({ createdAt: -1 });
+  res.json(stories);
+});
+
+// Notifications
+app.get('/api/notifications', auth, async (req, res) => {
+  const notifs = await Notification.find({ toUser: req.user.username }).sort({ createdAt: -1 }).limit(20);
+  res.json(notifs);
+});
+
+app.post('/api/notifications/read', auth, async (req, res) => {
+  await Notification.updateMany({ toUser: req.user.username }, { read: true });
+  res.json({ success: true });
+});
+
+app.get('/api/notifications/count', auth, async (req, res) => {
+  const count = await Notification.countDocuments({ toUser: req.user.username, read: false });
+  res.json({ count });
+});
+
+// Push subscription
 app.post('/api/push/subscribe', auth, async (req, res) => {
   const { subscription } = req.body;
-  await PushSubscription.findOneAndUpdate(
+  await PushSub.findOneAndUpdate(
     { username: req.user.username },
     { username: req.user.username, subscription },
     { upsert: true }
@@ -219,67 +237,7 @@ app.post('/api/push/subscribe', auth, async (req, res) => {
   res.json({ success: true });
 });
 
-// Get notifications
-app.get('/api/notifications', auth, async (req, res) => {
-  const notifs = await Notification.find({ toUser: req.user.username }).sort({ createdAt: -1 }).limit(20);
-  res.json(notifs);
-});
-
-// Mark all read
-app.post('/api/notifications/read', auth, async (req, res) => {
-  await Notification.updateMany({ toUser: req.user.username }, { read: true });
-  res.json({ success: true });
-});
-
-// Helper: send notification
-async function sendNotification(toUser, fromUser, type, message) {
-  await Notification.create({ toUser, fromUser, type, message });
-  const sub = await PushSubscription.findOne({ username: toUser });
-  if (sub) {
-    try {
-      await webpush.sendNotification(sub.subscription, JSON.stringify({
-        title: 'SnapVibe',
-        body: message,
-        icon: '/icon.png'
-      }));
-    } catch (e) { console.log('Push error:', e.message); }
-  }
-}
-
-// Notifications page
-app.get('/notifications', (req, res) => res.sendFile(path.join(__dirname, 'views', 'notifications.html')));
-
-// ===== DM SYSTEM WITH SOCKET.IO =====
-const http = require('http');
-const { Server } = require('socket.io');
-const server = http.createServer(app);
-const io = new Server(server);
-
-const Message = mongoose.model('Message', new mongoose.Schema({
-  from: String,
-  to: String,
-  message: String,
-  createdAt: { type: Date, default: Date.now }
-}));
-
-// Socket.io
-io.on('connection', (socket) => {
-  socket.on('join', (username) => {
-    socket.join(username);
-  });
-  socket.on('send_message', async ({ to, message }) => {
-    const token = socket.handshake.auth.token;
-    try {
-      const decoded = jwt.verify(token, SECRET);
-      const from = decoded.username;
-      const msg = await Message.create({ from, to, message });
-      io.to(to).emit('new_message', msg);
-      io.to(from).emit('new_message', msg);
-    } catch(e) { console.log('Socket auth error:', e.message); }
-  });
-});
-
-// Get chat list
+// DM
 app.get('/api/dm/chats', auth, async (req, res) => {
   const me = req.user.username;
   const msgs = await Message.find({ $or: [{ from: me }, { to: me }] }).sort({ createdAt: -1 });
@@ -290,20 +248,16 @@ app.get('/api/dm/chats', auth, async (req, res) => {
     if (!seen.has(other)) {
       seen.add(other);
       const user = await User.findOne({ username: other }).select('name username');
-      if (user) {
-        chats.push({
-          username: user.username,
-          name: user.name,
-          lastMsg: m.message,
-          time: new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
-        });
-      }
+      if (user) chats.push({
+        username: user.username, name: user.name,
+        lastMsg: m.message,
+        time: new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+      });
     }
   }
   res.json(chats);
 });
 
-// Get messages
 app.get('/api/dm/:username', auth, async (req, res) => {
   const me = req.user.username;
   const other = req.params.username;
@@ -313,8 +267,20 @@ app.get('/api/dm/:username', auth, async (req, res) => {
   res.json(msgs);
 });
 
-// DM page
-app.get('/dm', (req, res) => res.sendFile(path.join(__dirname, 'views', 'dm.html')));
+// Socket.io
+io.on('connection', (socket) => {
+  socket.on('join', (username) => socket.join(username));
+  socket.on('send_message', async ({ to, message }) => {
+    const token = socket.handshake.auth.token;
+    try {
+      const decoded = jwt.verify(token, SECRET);
+      const from = decoded.username;
+      const msg = await Message.create({ from, to, message });
+      io.to(to).emit('new_message', msg);
+      io.to(from).emit('new_message', msg);
+      await sendNotif(to, from, 'dm', `@${from} ne message bheja: ${message}`);
+    } catch(e) {}
+  });
+});
 
-// Replace listen with server.listen
 server.listen(process.env.PORT || 3000, () => console.log('SnapVibe chal raha hai!'));
