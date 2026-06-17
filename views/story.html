@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Story - SnapVibe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: black; font-family: -apple-system, sans-serif; max-width: 470px; margin: 0 auto; height: 100vh; overflow: hidden; }
+    .story-container { position: relative; width: 100%; height: 100vh; background: #111; }
+    .story-img { width: 100%; height: 100%; object-fit: cover; }
+    .story-top { position: absolute; top: 0; left: 0; right: 0; padding: 12px; z-index: 10; }
+    .progress-bars { display: flex; gap: 4px; margin-bottom: 10px; }
+    .progress-bar { flex: 1; height: 2px; background: rgba(255,255,255,0.4); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: white; width: 0%; transition: width linear; }
+    .story-header { display: flex; align-items: center; gap: 10px; }
+    .story-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+    .story-info { flex: 1; }
+    .story-username { color: white; font-weight: 600; font-size: 14px; }
+    .story-time { color: rgba(255,255,255,0.7); font-size: 12px; }
+    .close-btn { color: white; font-size: 24px; cursor: pointer; }
+    .story-bottom { position: absolute; bottom: 0; left: 0; right: 0; padding: 16px; }
+    .story-caption { color: white; font-size: 14px; margin-bottom: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+    .story-reply { display: flex; gap: 10px; align-items: center; }
+    .story-reply input { flex: 1; background: transparent; border: 1px solid rgba(255,255,255,0.5); border-radius: 20px; padding: 10px 16px; color: white; font-size: 14px; outline: none; }
+    .story-reply input::placeholder { color: rgba(255,255,255,0.6); }
+    .no-story { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; gap: 16px; }
+    .no-story button { padding: 12px 24px; background: linear-gradient(45deg, #f09433, #dc2743); border: none; border-radius: 8px; color: white; font-size: 16px; cursor: pointer; }
+    .tap-left { position: absolute; left: 0; top: 0; width: 40%; height: 100%; z-index: 5; }
+    .tap-right { position: absolute; right: 0; top: 0; width: 60%; height: 100%; z-index: 5; }
+    .upload-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; justify-content: center; align-items: center; }
+    .upload-box { background: #222; padding: 24px; border-radius: 12px; width: 300px; }
+    .upload-box h3 { color: white; margin-bottom: 16px; text-align: center; }
+    .upload-box input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: none; background: #333; color: white; }
+    .upload-box button { width: 100%; padding: 10px; background: linear-gradient(45deg, #f09433, #dc2743); border: none; border-radius: 8px; color: white; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="story-container" id="storyContainer">
+    <div class="no-story" id="noStory">
+      <p style="font-size:48px">📸</p>
+      <p>Koi story nahi hai</p>
+      <button onclick="showUpload()">Story Add Karo</button>
+    </div>
+  </div>
+
+  <div class="upload-modal" id="uploadModal" style="display:flex;display:none">
+    <div class="upload-box">
+      <h3>Story Add Karo</h3>
+      <input type="file" id="storyFile" accept="image/*,video/*">
+      <input type="text" id="storyCaption" placeholder="Caption...">
+      <button onclick="uploadStory()">Share Karo</button>
+      <button onclick="closeUpload()" style="background:#444;margin-top:8px">Cancel</button>
+    </div>
+  </div>
+
+<script>
+  const user = JSON.parse(localStorage.getItem('snapvibe_user') || '{}');
+  let stories = [];
+  let currentIndex = 0;
+  let timer = null;
+
+  async function loadStories() {
+    const res = await fetch('/api/stories');
+    stories = await res.json();
+    if (stories.length > 0) {
+      document.getElementById('noStory').style.display = 'none';
+      showStory(0);
+    }
+  }
+
+  function showStory(index) {
+    currentIndex = index;
+    const story = stories[index];
+    const container = document.getElementById('storyContainer');
+    
+    container.innerHTML = `
+      <div class="tap-left" onclick="prevStory()"></div>
+      <div class="tap-right" onclick="nextStory()"></div>
+      ${story.media.endsWith('.mp4') || story.media.endsWith('.webm') 
+        ? `<video class="story-img" autoplay muted src="${story.media}"></video>`
+        : `<img class="story-img" src="${story.media}">`}
+      <div class="story-top">
+        <div class="progress-bars">
+          ${stories.map((s, i) => `<div class="progress-bar"><div class="progress-fill" id="prog-${i}" style="width:${i < index ? '100%' : '0%'}"></div></div>`).join('')}
+        </div>
+        <div class="story-header">
+          <div class="story-avatar">${story.name[0].toUpperCase()}</div>
+          <div class="story-info">
+            <div class="story-username">${story.username}</div>
+            <div class="story-time">Abhi</div>
+          </div>
+          <span class="close-btn" onclick="window.location.href='/feed'">✕</span>
+        </div>
+      </div>
+      <div class="story-bottom">
+        <div class="story-caption">${story.caption || ''}</div>
+        <div class="story-reply">
+          <input type="text" placeholder="Reply karo...">
+          <span style="font-size:24px;cursor:pointer">❤️</span>
+          <span style="font-size:24px;cursor:pointer">📤</span>
+        </div>
+      </div>`;
+
+    if (timer) clearInterval(timer);
+    let width = 0;
+    const fill = document.getElementById('prog-' + index);
+    timer = setInterval(() => {
+      width += 2;
+      if (fill) fill.style.width = width + '%';
+      if (width >= 100) { clearInterval(timer); nextStory(); }
+    }, 100);
+  }
+
+  function nextStory() {
+    if (currentIndex < stories.length - 1) showStory(currentIndex + 1);
+    else window.location.href = '/feed';
+  }
+
+  function prevStory() {
+    if (currentIndex > 0) showStory(currentIndex - 1);
+  }
+
+  function showUpload() { document.getElementById('uploadModal').style.display = 'flex'; }
+  function closeUpload() { document.getElementById('uploadModal').style.display = 'none'; }
+
+  async function uploadStory() {
+    const file = document.getElementById('storyFile').files[0];
+    const caption = document.getElementById('storyCaption').value;
+    if (!file) return alert('File select karo!');
+    const formData = new FormData();
+    formData.append('media', file);
+    formData.append('caption', caption);
+    formData.append('username', user.username);
+    formData.append('name', user.name);
+    await fetch('/api/story', { method: 'POST', body: formData });
+    closeUpload();
+    loadStories();
+  }
+
+  loadStories();
+</script>
+</body>
+</html>
