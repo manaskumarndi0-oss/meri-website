@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Explore - SnapVibe</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #fafafa; font-family: -apple-system, sans-serif; padding-bottom: 60px; }
+.header { background: white; border-bottom: 1px solid #ddd; padding: 12px 16px; position: sticky; top: 0; z-index: 10; }
+.search-box { display: flex; align-items: center; background: #efefef; border-radius: 10px; padding: 8px 12px; gap: 8px; }
+.search-box input { border: none; background: transparent; outline: none; font-size: 15px; width: 100%; }
+.users-list { background: white; margin: 8px 0; }
+.user-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; gap: 12px; cursor: pointer; }
+.user-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #ddd; }
+.user-info { flex: 1; }
+.user-name { font-weight: bold; font-size: 14px; }
+.user-username { font-size: 12px; color: #666; }
+.section-title { padding: 12px 16px; font-weight: bold; font-size: 15px; background: white; border-bottom: 1px solid #eee; }
+.posts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.post-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; cursor: pointer; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px 0; }
+.bottom-nav a { font-size: 22px; text-decoration: none; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="search-box">
+    <span>🔍</span>
+    <input type="text" id="searchInput" placeholder="Search users..." oninput="searchUsers()">
+  </div>
+</div>
+
+<div id="searchResults" class="hidden users-list"></div>
+
+<div id="exploreSection">
+  <div class="section-title">✨ Popular Posts</div>
+  <div class="posts-grid" id="postsGrid"></div>
+</div>
+
+<div class="bottom-nav">
+  <a href="/feed">🏠</a>
+  <a href="/explore">🔍</a>
+  <a href="/story">📖</a>
+  <a href="/profile">👤</a>
+</div>
+
+<script>
+const myUsername = localStorage.getItem('username');
+
+async function loadPosts() {
+  const res = await fetch('/api/posts');
+  const posts = await res.json();
+  const grid = document.getElementById('postsGrid');
+  grid.innerHTML = posts.map(p => `
+    <img class="post-thumb" src="${p.image}" onclick="window.location='/profile?u=${p.username}'">
+  `).join('');
+}
+
+async function searchUsers() {
+  const query = document.getElementById('searchInput').value.trim();
+  const searchDiv = document.getElementById('searchResults');
+  const exploreDiv = document.getElementById('exploreSection');
+
+  if (!query) {
+    searchDiv.classList.add('hidden');
+    exploreDiv.classList.remove('hidden');
+    return;
+  }
+
+  exploreDiv.classList.add('hidden');
+  searchDiv.classList.remove('hidden');
+
+  const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+  const users = await res.json();
+
+  if (users.length === 0) {
+    searchDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Koi user nahi mila 😕</div>';
+    return;
+  }
+
+  searchDiv.innerHTML = users.map(u => `
+    <div class="user-item" onclick="window.location='/profile?u=${u.username}'">
+      <img class="user-avatar" src="${u.profilePic || '/uploads/default.png'}">
+      <div class="user-info">
+        <div class="user-name">${u.name}</div>
+        <div class="user-username">@${u.username}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+loadPosts();
+</script>
+</body>
+</html>

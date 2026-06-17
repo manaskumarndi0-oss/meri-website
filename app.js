@@ -169,3 +169,19 @@ app.get('/api/stories', async (req, res) => {
 });
 
 app.listen(3000, () => console.log('SnapVibe port 3000 pe chal raha hai!'));
+
+// Search users
+app.get('/api/search', async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.json([]);
+  const users = await User.find({
+    $or: [
+      { username: { $regex: q, $options: 'i' } },
+      { name: { $regex: q, $options: 'i' } }
+    ]
+  }).select('-password').limit(10);
+  res.json(users);
+});
+
+// Explore page
+app.get('/explore', (req, res) => res.sendFile(path.join(__dirname, 'views', 'explore.html')));
