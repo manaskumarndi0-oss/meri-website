@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages - SnapVibe</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #fafafa; font-family: -apple-system, sans-serif; padding-bottom: 60px; }
+.header { background: white; border-bottom: 1px solid #ddd; padding: 16px; font-weight: bold; font-size: 18px; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; }
+.chat-list { background: white; }
+.chat-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; gap: 12px; cursor: pointer; }
+.chat-avatar { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px; flex-shrink: 0; }
+.chat-info { flex: 1; }
+.chat-name { font-weight: 600; font-size: 15px; }
+.chat-last { font-size: 13px; color: #999; margin-top: 2px; }
+.chat-time { font-size: 11px; color: #999; }
+.empty { text-align: center; padding: 40px; color: #999; }
+.new-chat-btn { position: fixed; bottom: 70px; right: 16px; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 50%; width: 56px; height: 56px; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px 0; font-size: 26px; }
+.bottom-nav a { text-decoration: none; }
+
+/* Chat Window */
+.chat-window { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; flex-direction: column; }
+.chat-window.active { display: flex; }
+.chat-header { background: white; border-bottom: 1px solid #ddd; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+.back-btn { font-size: 24px; cursor: pointer; }
+.chat-header-name { font-weight: 600; font-size: 16px; }
+.messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.msg-bubble { max-width: 75%; padding: 10px 14px; border-radius: 20px; font-size: 14px; word-break: break-word; }
+.msg-mine { background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+.msg-other { background: #efefef; color: black; align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg-time { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+.chat-input { padding: 12px 16px; border-top: 1px solid #ddd; display: flex; gap: 8px; background: white; }
+.chat-input input { flex: 1; border: 1px solid #ddd; border-radius: 24px; padding: 10px 16px; font-size: 14px; outline: none; }
+.send-btn { background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
+
+/* New Chat Modal */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 200; }
+.modal.active { display: flex; align-items: center; justify-content: center; }
+.modal-box { background: white; width: 90%; border-radius: 12px; padding: 20px; }
+.modal-box h3 { margin-bottom: 12px; }
+.modal-box input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+.modal-box button { width: 100%; padding: 10px; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.cancel-btn { background: #f0f0f0 !important; color: black !important; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <span onclick="history.back()">←</span>
+  Messages
+</div>
+
+<div class="chat-list" id="chatList">
+  <div class="empty">Loading...</div>
+</div>
+
+<button class="new-chat-btn" onclick="openNewChat()">✏️</button>
+
+<div class="bottom-nav">
+  <a href="/feed">🏠</a>
+  <a href="/explore">🔍</a>
+  <a href="/notifications">🔔</a>
+  <a href="/story">📖</a>
+  <a href="/profile">👤</a>
+</div>
+
+<!-- Chat Window -->
+<div class="chat-window" id="chatWindow">
+  <div class="chat-header">
+    <span class="back-btn" onclick="closeChat()">←</span>
+    <div class="chat-avatar" id="chatAvatar" style="width:36px;height:36px;font-size:14px;"></div>
+    <div class="chat-header-name" id="chatHeaderName"></div>
+  </div>
+  <div class="messages" id="messages"></div>
+  <div class="chat-input">
+    <input type="text" id="msgInput" placeholder="Message likho..." onkeypress="if(event.key==='Enter')sendMsg()">
+    <button class="send-btn" onclick="sendMsg()">➤</button>
+  </div>
+</div>
+
+<!-- New Chat Modal -->
+<div class="modal" id="newChatModal">
+  <div class="modal-box">
+    <h3>Naya Message</h3>
+    <input type="text" id="newChatUser" placeholder="Username likho...">
+    <button onclick="startChat()">Chat Shuru Karo</button>
+    <button class="cancel-btn" onclick="closeNewChat()">Cancel</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const token = localStorage.getItem('token');
+const myUsername = localStorage.getItem('username');
+const myName = localStorage.getItem('name');
+if (!token) window.location.href = '/login';
+
+const socket = io({ auth: { token } });
+let currentChatUser = null;
+
+socket.on('connect', () => {
+  socket.emit('join', myUsername);
+});
+
+socket.on('new_message', (msg) => {
+  if (currentChatUser && (msg.from === currentChatUser || msg.to === currentChatUser)) {
+    appendMessage(msg);
+  }
+  loadChats();
+});
+
+async function loadChats() {
+  const res = await fetch('/api/dm/chats', { headers: { 'Authorization': token } });
+  const chats = await res.json();
+  const list = document.getElementById('chatList');
+  if (!chats.length) {
+    list.innerHTML = '<div class="empty">Koi message nahi hai abhi 💬<br><br>Naye icon se chat shuru karo!</div>';
+    return;
+  }
+  list.innerHTML = chats.map(c => `
+    <div class="chat-item" onclick="openChat('${c.username}', '${c.name}')">
+      <div class="chat-avatar">${c.name[0].toUpperCase()}</div>
+      <div class="chat-info">
+        <div class="chat-name">${c.name} <span style="color:#999;font-weight:normal">@${c.username}</span></div>
+        <div class="chat-last">${c.lastMsg || 'Chat shuru karo'}</div>
+      </div>
+      <div class="chat-time">${c.time || ''}</div>
+    </div>
+  `).join('');
+}
+
+async function openChat(username, name) {
+  currentChatUser = username;
+  document.getElementById('chatHeaderName').textContent = name + ' (@' + username + ')';
+  document.getElementById('chatAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('chatWindow').classList.add('active');
+  const res = await fetch('/api/dm/' + username, { headers: { 'Authorization': token } });
+  const msgs = await res.json();
+  const box = document.getElementById('messages');
+  box.innerHTML = '';
+  msgs.forEach(m => appendMessage(m));
+  box.scrollTop = box.scrollHeight;
+}
+
+function closeChat() {
+  currentChatUser = null;
+  document.getElementById('chatWindow').classList.remove('active');
+}
+
+function appendMessage(msg) {
+  const box = document.getElementById('messages');
+  const isMine = msg.from === myUsername;
+  const time = new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  box.innerHTML += `
+    <div class="msg-bubble ${isMine ? 'msg-mine' : 'msg-other'}">
+      ${msg.message}
+      <div class="msg-time">${time}</div>
+    </div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendMsg() {
+  const input = document.getElementById('msgInput');
+  const msg = input.value.trim();
+  if (!msg || !currentChatUser) return;
+  socket.emit('send_message', { to: currentChatUser, message: msg });
+  input.value = '';
+}
+
+function openNewChat() { document.getElementById('newChatModal').classList.add('active'); }
+function closeNewChat() { document.getElementById('newChatModal').classList.remove('active'); }
+
+function startChat() {
+  const username = document.getElementById('newChatUser').value.trim();
+  if (!username) return alert('Username likho!');
+  closeNewChat();
+  openChat(username, username);
+}
+
+loadChats();
+</script>
+</body>
+</html>

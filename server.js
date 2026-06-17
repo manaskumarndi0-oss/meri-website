@@ -168,7 +168,6 @@ app.get('/api/stories', async (req, res) => {
   res.json(stories);
 });
 
-app.listen(3000, () => console.log('SnapVibe port 3000 pe chal raha hai!'));
 
 // Search users
 app.get('/api/search', async (req, res) => {
@@ -249,3 +248,73 @@ async function sendNotification(toUser, fromUser, type, message) {
 
 // Notifications page
 app.get('/notifications', (req, res) => res.sendFile(path.join(__dirname, 'views', 'notifications.html')));
+
+// ===== DM SYSTEM WITH SOCKET.IO =====
+const http = require('http');
+const { Server } = require('socket.io');
+const server = http.createServer(app);
+const io = new Server(server);
+
+const Message = mongoose.model('Message', new mongoose.Schema({
+  from: String,
+  to: String,
+  message: String,
+  createdAt: { type: Date, default: Date.now }
+}));
+
+// Socket.io
+io.on('connection', (socket) => {
+  socket.on('join', (username) => {
+    socket.join(username);
+  });
+  socket.on('send_message', async ({ to, message }) => {
+    const token = socket.handshake.auth.token;
+    try {
+      const decoded = jwt.verify(token, SECRET);
+      const from = decoded.username;
+      const msg = await Message.create({ from, to, message });
+      io.to(to).emit('new_message', msg);
+      io.to(from).emit('new_message', msg);
+    } catch(e) { console.log('Socket auth error:', e.message); }
+  });
+});
+
+// Get chat list
+app.get('/api/dm/chats', auth, async (req, res) => {
+  const me = req.user.username;
+  const msgs = await Message.find({ $or: [{ from: me }, { to: me }] }).sort({ createdAt: -1 });
+  const seen = new Set();
+  const chats = [];
+  for (const m of msgs) {
+    const other = m.from === me ? m.to : m.from;
+    if (!seen.has(other)) {
+      seen.add(other);
+      const user = await User.findOne({ username: other }).select('name username');
+      if (user) {
+        chats.push({
+          username: user.username,
+          name: user.name,
+          lastMsg: m.message,
+          time: new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+        });
+      }
+    }
+  }
+  res.json(chats);
+});
+
+// Get messages
+app.get('/api/dm/:username', auth, async (req, res) => {
+  const me = req.user.username;
+  const other = req.params.username;
+  const msgs = await Message.find({
+    $or: [{ from: me, to: other }, { from: other, to: me }]
+  }).sort({ createdAt: 1 });
+  res.json(msgs);
+});
+
+// DM page
+app.get('/dm', (req, res) => res.sendFile(path.join(__dirname, 'views', 'dm.html')));
+
+// Replace listen with server.listen
+server.listen(process.env.PORT || 3000, () => console.log('SnapVibe chal raha hai!'));
