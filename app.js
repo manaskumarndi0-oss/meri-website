@@ -8,14 +8,20 @@ const mongoose = require('mongoose');
 const app = express();
 const SECRET = 'snapvibe_secret_key';
 
-// MongoDB connect
 mongoose.connect('mongodb+srv://manaskumarndi0_db_user:SnapVibe123@cluster0.wd1iehn.mongodb.net/snapvibe?appName=Cluster0')
   .then(() => console.log('MongoDB connected!'))
   .catch(err => console.log('DB Error:', err));
 
 // Models
 const User = mongoose.model('User', new mongoose.Schema({
-  name: String, username: String, email: String, password: String
+  name: String,
+  username: String,
+  email: String,
+  password: String,
+  bio: { type: String, default: '' },
+  profilePic: { type: String, default: '/uploads/default.png' },
+  followers: [String],
+  following: [String]
 }));
 
 const Post = mongoose.model('Post', new mongoose.Schema({
@@ -23,6 +29,12 @@ const Post = mongoose.model('Post', new mongoose.Schema({
   image: String, likes: [String],
   comments: [{ username: String, comment: String }],
   createdAt: { type: Date, default: Date.now }
+}));
+
+const Story = mongoose.model('Story', new mongoose.Schema({
+  username: String, name: String,
+  media: String, caption: String,
+  createdAt: { type: Date, default: Date.now, expires: 86400 }
 }));
 
 app.use(express.json());
@@ -35,16 +47,31 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Auth middleware
+function auth(req, res, next) {
+  const token = req.headers['authorization'];
+  if (!token) return res.json({ success: false, message: 'Login karo pehle!' });
+  try {
+    req.user = jwt.verify(token, SECRET);
+    next();
+  } catch {
+    res.json({ success: false, message: 'Invalid token!' });
+  }
+}
+
 // Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'views', 'login.html')));
 app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'views', 'register.html')));
 app.get('/feed', (req, res) => res.sendFile(path.join(__dirname, 'views', 'feed.html')));
+app.get('/story', (req, res) => res.sendFile(path.join(__dirname, 'views', 'story.html')));
+app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'views', 'profile.html')));
 
 // Register
 app.post('/api/register', async (req, res) => {
   const { name, username, email, password } = req.body;
   if (await User.findOne({ email })) return res.json({ success: false, message: 'Email already registered!' });
+  if (await User.findOne({ username })) return res.json({ success: false, message: 'Username already taken!' });
   const hashed = await bcrypt.hash(password, 10);
   await User.create({ name, username, email, password: hashed });
   res.json({ success: true, message: 'Register ho gaye! Ab login karo.' });
@@ -96,16 +123,37 @@ app.post('/api/comment/:id', async (req, res) => {
   res.json({ success: true, comments: post.comments });
 });
 
-app.listen(3000, () => console.log('SnapVibe port 3000 pe chal raha hai!'));
+// Follow / Unfollow
+app.post('/api/follow/:targetUsername', auth, async (req, res) => {
+  const me = req.user.username;
+  const target = req.params.targetUsername;
+  if (me === target) return res.json({ success: false, message: 'Khud ko follow nahi kar sakte!' });
+  const myUser = await User.findOne({ username: me });
+  const targetUser = await User.findOne({ username: target });
+  if (!targetUser) return res.json({ success: false, message: 'User nahi mila!' });
+  const idx = myUser.following.indexOf(target);
+  if (idx === -1) {
+    myUser.following.push(target);
+    targetUser.followers.push(me);
+    await myUser.save();
+    await targetUser.save();
+    res.json({ success: true, action: 'followed', followers: targetUser.followers.length });
+  } else {
+    myUser.following.splice(idx, 1);
+    targetUser.followers.splice(targetUser.followers.indexOf(me), 1);
+    await myUser.save();
+    await targetUser.save();
+    res.json({ success: true, action: 'unfollowed', followers: targetUser.followers.length });
+  }
+});
 
-// Story Model
-const Story = mongoose.model('Story', new mongoose.Schema({
-  username: String, name: String, caption: String,
-  media: String, createdAt: { type: Date, default: Date.now, expires: 86400 }
-}));
-
-// Story page
-app.get('/story', (req, res) => res.sendFile(path.join(__dirname, 'views', 'story.html')));
+// Get profile
+app.get('/api/profile/:username', async (req, res) => {
+  const user = await User.findOne({ username: req.params.username }).select('-password');
+  if (!user) return res.json({ success: false, message: 'User nahi mila!' });
+  const posts = await Post.find({ username: req.params.username }).sort({ createdAt: -1 });
+  res.json({ success: true, user, posts });
+});
 
 // Upload story
 app.post('/api/story', upload.single('media'), async (req, res) => {
@@ -119,3 +167,5 @@ app.get('/api/stories', async (req, res) => {
   const stories = await Story.find().sort({ createdAt: -1 });
   res.json(stories);
 });
+
+app.listen(3000, () => console.log('SnapVibe port 3000 pe chal raha hai!'));
