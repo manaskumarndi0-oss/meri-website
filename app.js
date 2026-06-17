@@ -97,3 +97,25 @@ app.post('/api/comment/:id', async (req, res) => {
 });
 
 app.listen(3000, () => console.log('SnapVibe port 3000 pe chal raha hai!'));
+
+// Story Model
+const Story = mongoose.model('Story', new mongoose.Schema({
+  username: String, name: String, caption: String,
+  media: String, createdAt: { type: Date, default: Date.now, expires: 86400 }
+}));
+
+// Story page
+app.get('/story', (req, res) => res.sendFile(path.join(__dirname, 'views', 'story.html')));
+
+// Upload story
+app.post('/api/story', upload.single('media'), async (req, res) => {
+  const { caption, username, name } = req.body;
+  const story = await Story.create({ username, name, caption, media: '/uploads/' + req.file.filename });
+  res.json({ success: true, story });
+});
+
+// Get stories
+app.get('/api/stories', async (req, res) => {
+  const stories = await Story.find().sort({ createdAt: -1 });
+  res.json(stories);
+});
