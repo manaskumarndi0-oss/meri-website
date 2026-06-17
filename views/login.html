@@ -6,7 +6,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #fafafa; font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    .box { background: white; border: 1px solid #ddd; padding: 40px 40px; width: 350px; border-radius: 4px; text-align: center; }
+    .box { background: white; border: 1px solid #ddd; padding: 40px; width: 350px; border-radius: 4px; text-align: center; }
     h1 { font-size: 36px; font-style: italic; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 24px; }
     input { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #fafafa; }
     button { width: 100%; padding: 10px; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; }
@@ -43,7 +43,9 @@
       });
       const data = await res.json();
       if (data.success) {
-        localStorage.setItem('snapvibe_user', JSON.stringify(data));
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('name', data.name);
         window.location.href = '/feed';
       } else {
         document.getElementById('msg').innerText = data.message;
