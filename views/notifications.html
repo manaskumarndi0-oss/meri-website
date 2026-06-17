@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notifications - SnapVibe</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #fafafa; font-family: -apple-system, sans-serif; padding-bottom: 60px; }
+.header { background: white; border-bottom: 1px solid #ddd; padding: 16px; font-weight: bold; font-size: 18px; position: sticky; top: 0; z-index: 10; }
+.notif-item { display: flex; align-items: center; padding: 12px 16px; background: white; border-bottom: 1px solid #f0f0f0; gap: 12px; }
+.notif-item.unread { background: #e8f4fd; }
+.notif-icon { font-size: 24px; width: 40px; text-align: center; }
+.notif-text { flex: 1; }
+.notif-msg { font-size: 14px; }
+.notif-time { font-size: 12px; color: #999; margin-top: 2px; }
+.empty { text-align: center; padding: 40px; color: #999; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px 0; }
+.bottom-nav a { font-size: 22px; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="header">🔔 Notifications</div>
+<div id="notifList"><div class="empty">Loading...</div></div>
+<div class="bottom-nav">
+  <a href="/feed">🏠</a>
+  <a href="/explore">🔍</a>
+  <a href="/notifications">🔔</a>
+  <a href="/story">📖</a>
+  <a href="/profile">👤</a>
+</div>
+<script>
+const token = localStorage.getItem('token');
+
+function timeAgo(date) {
+  const diff = Math.floor((Date.now() - new Date(date)) / 1000);
+  if (diff < 60) return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function getIcon(type) {
+  if (type === 'like') return '❤️';
+  if (type === 'comment') return '💬';
+  if (type === 'follow') return '👤';
+  return '🔔';
+}
+
+async function loadNotifications() {
+  const res = await fetch('/api/notifications', { headers: { 'Authorization': token } });
+  const notifs = await res.json();
+  const list = document.getElementById('notifList');
+  if (!notifs.length) { list.innerHTML = '<div class="empty">Koi notification nahi hai abhi 😊</div>'; return; }
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.read ? '' : 'unread'}">
+      <div class="notif-icon">${getIcon(n.type)}</div>
+      <div class="notif-text">
+        <div class="notif-msg">${n.message}</div>
+        <div class="notif-time">${timeAgo(n.createdAt)}</div>
+      </div>
+    </div>
+  `).join('');
+  await fetch('/api/notifications/read', { method: 'POST', headers: { 'Authorization': token } });
+}
+
+// Register push notifications
+async function registerPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const reg = await navigator.serviceWorker.register('/sw.js');
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return;
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: 'BO5ridjbmID1Wroza2yYOOV4OmMsyuWh5jrR8g4heh0ZmkKWPWBxeA-aQfvAQBERt8seBEBqJfjZ7NCnZ432Ayk'
+  });
+  await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subscription: sub })
+  });
+}
+
+loadNotifications();
+registerPush();
+</script>
+</body>
+</html>

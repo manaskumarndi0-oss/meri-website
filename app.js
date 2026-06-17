@@ -185,3 +185,67 @@ app.get('/api/search', async (req, res) => {
 
 // Explore page
 app.get('/explore', (req, res) => res.sendFile(path.join(__dirname, 'views', 'explore.html')));
+
+// ===== PUSH NOTIFICATIONS + NOTIFICATIONS SYSTEM =====
+const webpush = require('web-push');
+
+webpush.setVapidDetails(
+  'mailto:snapvibe@example.com',
+  'BO5ridjbmID1Wroza2yYOOV4OmMsyuWh5jrR8g4heh0ZmkKWPWBxeA-aQfvAQBERt8seBEBqJfjZ7NCnZ432Ayk',
+  'eZIJwGI4-7T-bV2jlcsJvJgLrItmF-tJTEJeJKKNP-8'
+);
+
+const PushSubscription = mongoose.model('PushSubscription', new mongoose.Schema({
+  username: String,
+  subscription: Object
+}));
+
+const Notification = mongoose.model('Notification', new mongoose.Schema({
+  toUser: String,
+  fromUser: String,
+  type: String,
+  message: String,
+  read: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+}));
+
+// Save push subscription
+app.post('/api/push/subscribe', auth, async (req, res) => {
+  const { subscription } = req.body;
+  await PushSubscription.findOneAndUpdate(
+    { username: req.user.username },
+    { username: req.user.username, subscription },
+    { upsert: true }
+  );
+  res.json({ success: true });
+});
+
+// Get notifications
+app.get('/api/notifications', auth, async (req, res) => {
+  const notifs = await Notification.find({ toUser: req.user.username }).sort({ createdAt: -1 }).limit(20);
+  res.json(notifs);
+});
+
+// Mark all read
+app.post('/api/notifications/read', auth, async (req, res) => {
+  await Notification.updateMany({ toUser: req.user.username }, { read: true });
+  res.json({ success: true });
+});
+
+// Helper: send notification
+async function sendNotification(toUser, fromUser, type, message) {
+  await Notification.create({ toUser, fromUser, type, message });
+  const sub = await PushSubscription.findOne({ username: toUser });
+  if (sub) {
+    try {
+      await webpush.sendNotification(sub.subscription, JSON.stringify({
+        title: 'SnapVibe',
+        body: message,
+        icon: '/icon.png'
+      }));
+    } catch (e) { console.log('Push error:', e.message); }
+  }
+}
+
+// Notifications page
+app.get('/notifications', (req, res) => res.sendFile(path.join(__dirname, 'views', 'notifications.html')));
