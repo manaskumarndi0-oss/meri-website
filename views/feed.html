@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SnapVibe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fafafa; font-family: -apple-system, sans-serif; max-width: 470px; margin: 0 auto; }
+    
+    /* Navbar */
+    .navbar { background: white; border-bottom: 1px solid #ddd; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .navbar h1 { font-size: 24px; font-style: italic; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .navbar-icons { display: flex; gap: 16px; font-size: 22px; }
+    .navbar-icons span { cursor: pointer; }
+
+    /* Stories */
+    .stories { display: flex; gap: 12px; padding: 12px 16px; overflow-x: auto; background: white; border-bottom: 1px solid #ddd; }
+    .stories::-webkit-scrollbar { display: none; }
+    .story { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+    .story-ring { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); padding: 2px; }
+    .story-img { width: 100%; height: 100%; border-radius: 50%; background: #ddd; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .story span { font-size: 11px; color: #333; }
+
+    /* Post */
+    .post { background: white; margin-bottom: 8px; border-bottom: 1px solid #efefef; }
+    .post-header { display: flex; align-items: center; padding: 10px 12px; gap: 10px; }
+    .post-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; }
+    .post-username { font-weight: 600; font-size: 14px; }
+    .post-img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+    .post-actions { padding: 8px 12px; display: flex; gap: 16px; font-size: 24px; }
+    .post-actions span { cursor: pointer; }
+    .like-count { padding: 0 12px; font-weight: 600; font-size: 14px; }
+    .post-caption { padding: 4px 12px 8px; font-size: 14px; }
+    .post-caption b { font-weight: 600; }
+    .comments-section { padding: 0 12px 8px; }
+    .comment { font-size: 13px; margin-bottom: 2px; }
+    .comment b { font-weight: 600; }
+    .comment-input { display: flex; padding: 8px 12px; border-top: 1px solid #efefef; gap: 8px; }
+    .comment-input input { flex: 1; border: none; outline: none; font-size: 14px; background: transparent; }
+    .comment-input button { color: #0095f6; font-weight: 600; border: none; background: none; cursor: pointer; }
+
+    /* Upload Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 200; }
+    .modal-box { background: white; width: 90%; max-width: 400px; margin: 80px auto; border-radius: 12px; overflow: hidden; }
+    .modal-header { padding: 14px; text-align: center; font-weight: 600; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+    .modal-body { padding: 16px; }
+    .modal-body input, .modal-body textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    .modal-body textarea { height: 80px; resize: none; }
+    .modal-body button { width: 100%; padding: 10px; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+
+    /* Bottom Nav */
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 470px; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px 0; font-size: 26px; }
+    .bottom-nav span { cursor: pointer; }
+    .feed-container { padding-bottom: 60px; }
+  </style>
+</head>
+<body>
+
+<div class="navbar">
+  <h1>SnapVibe</h1>
+  <div class="navbar-icons">
+    <span>❤️</span>
+    <span>💬</span>
+  </div>
+</div>
+
+<div class="stories">
+  <div class="story">
+    <div class="story-ring"><div class="story-img">➕</div></div>
+    <span>Teri Story</span>
+  </div>
+  <div class="story">
+    <div class="story-ring"><div class="story-img">😎</div></div>
+    <span>Rahul</span>
+  </div>
+  <div class="story">
+    <div class="story-ring"><div class="story-img">🌸</div></div>
+    <span>Priya</span>
+  </div>
+  <div class="story">
+    <div class="story-ring"><div class="story-img">🔥</div></div>
+    <span>Arjun</span>
+  </div>
+</div>
+
+<div class="feed-container" id="feed"></div>
+
+<!-- Upload Modal -->
+<div class="modal" id="uploadModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span onclick="closeModal()">✕</span>
+      <span>Naya Post</span>
+      <span></span>
+    </div>
+    <div class="modal-body">
+      <input type="file" id="imageFile" accept="image/*">
+      <textarea id="caption" placeholder="Caption likho..."></textarea>
+      <button onclick="uploadPost()">Share Karo 🚀</button>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <span>🏠</span>
+  <span>🔍</span>
+  <span onclick="openModal()">➕</span>
+  <span>❤️</span>
+  <span>👤</span>
+</div>
+
+<script>
+  const user = JSON.parse(localStorage.getItem('snapvibe_user') || '{}');
+  if (!user.token) window.location.href = '/login';
+
+  async function loadPosts() {
+    const res = await fetch('/api/posts');
+    const posts = await res.json();
+    const feed = document.getElementById('feed');
+    feed.innerHTML = posts.length === 0 ? '<p style="text-align:center;padding:40px;color:#999">Koi post nahi hai. Pehla post karo! 📸</p>' : '';
+    posts.forEach(post => {
+      const liked = post.likes.includes(user.username);
+      feed.innerHTML += `
+        <div class="post">
+          <div class="post-header">
+            <div class="post-avatar">${post.name[0].toUpperCase()}</div>
+            <div class="post-username">${post.username}</div>
+          </div>
+          <img class="post-img" src="${post.image}">
+          <div class="post-actions">
+            <span onclick="likePost(${post.id})" id="like-btn-${post.id}">${liked ? '❤️' : '🤍'}</span>
+            <span>💬</span>
+            <span>📤</span>
+          </div>
+          <div class="like-count" id="likes-${post.id}">${post.likes.length} likes</div>
+          <div class="post-caption"><b>${post.username}</b> ${post.caption}</div>
+          <div class="comments-section" id="comments-${post.id}">
+            ${post.comments.map(c => `<div class="comment"><b>${c.username}</b> ${c.comment}</div>`).join('')}
+          </div>
+          <div class="comment-input">
+            <input type="text" placeholder="Comment karo..." id="cinput-${post.id}">
+            <button onclick="addComment(${post.id})">Post</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  async function likePost(id) {
+    const res = await fetch('/api/like/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user.username })
+    });
+    const data = await res.json();
+    document.getElementById('likes-' + id).innerText = data.likes + ' likes';
+    const btn = document.getElementById('like-btn-' + id);
+    btn.innerText = btn.innerText === '🤍' ? '❤️' : '🤍';
+  }
+
+  async function addComment(id) {
+    const input = document.getElementById('cinput-' + id);
+    const comment = input.value.trim();
+    if (!comment) return;
+    const res = await fetch('/api/comment/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user.username, comment })
+    });
+    const data = await res.json();
+    const box = document.getElementById('comments-' + id);
+    box.innerHTML = data.comments.map(c => `<div class="comment"><b>${c.username}</b> ${c.comment}</div>`).join('');
+    input.value = '';
+  }
+
+  function openModal() { document.getElementById('uploadModal').style.display = 'block'; }
+  function closeModal() { document.getElementById('uploadModal').style.display = 'none'; }
+
+  async function uploadPost() {
+    const file = document.getElementById('imageFile').files[0];
+    const caption = document.getElementById('caption').value;
+    if (!file) return alert('Photo select karo!');
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('caption', caption);
+    formData.append('username', user.username);
+    formData.append('name', user.name);
+    await fetch('/api/post', { method: 'POST', body: formData });
+    closeModal();
+    loadPosts();
+  }
+
+  loadPosts();
+</script>
+</body>
+</html>

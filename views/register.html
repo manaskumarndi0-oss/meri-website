@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SnapVibe - Register</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fafafa; font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .box { background: white; border: 1px solid #ddd; padding: 40px; width: 350px; border-radius: 4px; text-align: center; }
+    h1 { font-size: 36px; font-style: italic; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+    p.tagline { font-size: 17px; font-weight: 600; color: #999; margin-bottom: 20px; }
+    input { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #fafafa; }
+    button { width: 100%; padding: 10px; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; }
+    .terms { font-size: 12px; color: #999; margin-top: 16px; }
+    .terms a { color: #00376b; }
+    .login-box { background: white; border: 1px solid #ddd; padding: 20px; width: 350px; text-align: center; margin-top: 10px; border-radius: 4px; font-size: 14px; }
+    .login-box a { color: #0095f6; font-weight: 600; text-decoration: none; }
+    .msg { font-size: 13px; color: red; margin-top: 8px; }
+    .success { color: green; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="box">
+      <h1>SnapVibe</h1>
+      <p class="tagline">Apne dosto ki photos dekho aur share karo.</p>
+      <input type="text" id="name" placeholder="Poora Naam">
+      <input type="text" id="username" placeholder="Username">
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Password">
+      <button onclick="register()">Sign Up</button>
+      <p class="terms">Sign up karke tum hamare <a href="#">Terms</a>, <a href="#">Privacy Policy</a> aur <a href="#">Cookies Policy</a> se agree karte ho.</p>
+      <p class="msg" id="msg"></p>
+    </div>
+    <div class="login-box">
+      Pehle se account hai? <a href="/login">Log in karo</a>
+    </div>
+  </div>
+  <script>
+    async function register() {
+      const name = document.getElementById('name').value;
+      const username = document.getElementById('username').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      if (!name || !username || !email || !password) {
+        document.getElementById('msg').innerText = 'Sab fields bharo!';
+        return;
+      }
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, username, email, password })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('msg');
+      if (data.success) {
+        msg.className = 'msg success';
+        msg.innerText = data.message;
+        setTimeout(() => window.location.href = '/login', 1500);
+      } else {
+        msg.innerText = data.message;
+      }
+    }
+  </script>
+</body>
+</html>

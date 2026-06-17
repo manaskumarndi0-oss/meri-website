@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SnapVibe - Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fafafa; font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .box { background: white; border: 1px solid #ddd; padding: 40px 40px; width: 350px; border-radius: 4px; text-align: center; }
+    h1 { font-size: 36px; font-style: italic; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 24px; }
+    input { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #fafafa; }
+    button { width: 100%; padding: 10px; background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; }
+    .divider { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: #999; font-size: 13px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+    .register-box { background: white; border: 1px solid #ddd; padding: 20px; width: 350px; text-align: center; margin-top: 10px; border-radius: 4px; font-size: 14px; }
+    .register-box a { color: #0095f6; font-weight: 600; text-decoration: none; }
+    .msg { font-size: 13px; color: red; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="box">
+      <h1>SnapVibe</h1>
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Password">
+      <button onclick="login()">Log In</button>
+      <div class="divider">OR</div>
+      <p style="font-size:13px;color:#385185;font-weight:600;cursor:pointer">Facebook se login karo</p>
+      <p class="msg" id="msg"></p>
+    </div>
+    <div class="register-box">
+      Account nahi hai? <a href="/register">Sign up karo</a>
+    </div>
+  </div>
+  <script>
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('snapvibe_user', JSON.stringify(data));
+        window.location.href = '/feed';
+      } else {
+        document.getElementById('msg').innerText = data.message;
+      }
+    }
+  </script>
+</body>
+</html>
