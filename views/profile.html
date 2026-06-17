@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile - SnapVibe</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #fafafa; font-family: -apple-system, sans-serif; }
+.header { background: white; border-bottom: 1px solid #ddd; padding: 12px 16px; text-align: center; font-weight: bold; font-size: 18px; position: sticky; top: 0; z-index: 10; }
+.profile-section { background: white; padding: 20px 16px; }
+.profile-top { display: flex; align-items: center; gap: 20px; margin-bottom: 16px; }
+.profile-pic { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ddd; }
+.profile-stats { display: flex; gap: 20px; }
+.stat { text-align: center; }
+.stat-num { font-weight: bold; font-size: 18px; }
+.stat-label { font-size: 12px; color: #666; }
+.profile-name { font-weight: bold; font-size: 15px; }
+.profile-bio { font-size: 14px; color: #333; margin-top: 4px; }
+.follow-btn { width: 100%; padding: 8px; background: #0095f6; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; margin-top: 12px; }
+.follow-btn.following { background: white; color: black; border: 1px solid #ddd; }
+.posts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 2px; }
+.post-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px 0; }
+.bottom-nav a { font-size: 22px; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="header">SnapVibe</div>
+<div class="profile-section">
+  <div class="profile-top">
+    <img class="profile-pic" id="profilePic" src="/uploads/default.png">
+    <div class="profile-stats">
+      <div class="stat"><div class="stat-num" id="postsCount">0</div><div class="stat-label">posts</div></div>
+      <div class="stat"><div class="stat-num" id="followersCount">0</div><div class="stat-label">followers</div></div>
+      <div class="stat"><div class="stat-num" id="followingCount">0</div><div class="stat-label">following</div></div>
+    </div>
+  </div>
+  <div class="profile-name" id="profileName"></div>
+  <div class="profile-bio" id="profileBio"></div>
+  <button class="follow-btn" id="followBtn" onclick="toggleFollow()">Follow</button>
+</div>
+<div class="posts-grid" id="postsGrid"></div>
+<div class="bottom-nav">
+  <a href="/feed">🏠</a>
+  <a href="/explore">🔍</a>
+  <a href="/story">📖</a>
+  <a href="/profile">👤</a>
+</div>
+<script>
+const token = localStorage.getItem('token');
+const myUsername = localStorage.getItem('username');
+const params = new URLSearchParams(window.location.search);
+const viewUsername = params.get('u') || myUsername;
+let isFollowing = false;
+
+async function loadProfile() {
+  const res = await fetch('/api/profile/' + viewUsername);
+  const data = await res.json();
+  if (!data.success) return alert('User nahi mila!');
+  const { user, posts } = data;
+  document.getElementById('profileName').textContent = user.name;
+  document.getElementById('profileBio').textContent = user.bio || '';
+  document.getElementById('postsCount').textContent = posts.length;
+  document.getElementById('followersCount').textContent = user.followers.length;
+  document.getElementById('followingCount').textContent = user.following.length;
+  if (user.profilePic) document.getElementById('profilePic').src = user.profilePic;
+  isFollowing = user.followers.includes(myUsername);
+  const btn = document.getElementById('followBtn');
+  if (viewUsername === myUsername) { btn.style.display = 'none'; }
+  else { btn.textContent = isFollowing ? 'Following' : 'Follow'; btn.className = isFollowing ? 'follow-btn following' : 'follow-btn'; }
+  const grid = document.getElementById('postsGrid');
+  grid.innerHTML = posts.map(p => `<img class="post-thumb" src="${p.image}" onclick="window.location='/feed'">`).join('');
+}
+
+async function toggleFollow() {
+  const res = await fetch('/api/follow/' + viewUsername, {
+    method: 'POST',
+    headers: { 'Authorization': token, 'Content-Type': 'application/json' }
+  });
+  const data = await res.json();
+  if (data.success) {
+    isFollowing = data.action === 'followed';
+    const btn = document.getElementById('followBtn');
+    btn.textContent = isFollowing ? 'Following' : 'Follow';
+    btn.className = isFollowing ? 'follow-btn following' : 'follow-btn';
+    document.getElementById('followersCount').textContent = data.followers;
+  }
+}
+
+loadProfile();
+</script>
+</body>
+</html>
